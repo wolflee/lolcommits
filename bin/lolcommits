@@ -82,6 +82,33 @@ HOOK_PATH = File.join ".git", "hooks", "post-commit"
 HOOK_DIR = File.join ".git", "hooks"
 
 #
+# Check for an exsiting (valid) post-commit hook
+#
+def existing_valid_hook?
+  if hook = read_existing_hook
+    hook_shebang = hook.lines.first.strip
+    # TODO: consider always removing current hook and re-adding new hook
+    if hook =~ /lolcommits \-\-/
+      fatal "A post-commit hook for lolcommits already exists for this project."
+      exit 1
+    elsif hook_shebang =~ /^\#\!\/bin\/.*sh/
+      # found an exsiting hook with a good shebang
+      return true
+    else
+      fatal "A post-commit hook already exists, but doesn't start with a valid shebang! e.g. #!/bin/sh"
+      exit 1
+    end
+  end
+end
+
+#
+# Read contents of any existing post-commit hook
+#
+def read_existing_hook
+  File.exists?(HOOK_PATH) ? File.read(HOOK_PATH) : nil
+end
+
+#
 # IF --ENABLE, DO ENABLE
 #
 def do_enable
@@ -90,21 +117,21 @@ def do_enable
     exit 1
   end
 
-  #its possible a hooks dir doesnt exist, so create it if so
+  # its possible a hooks dir doesnt exist, so create it if so
   if not File.directory?(HOOK_DIR)
     Dir.mkdir(HOOK_DIR)
   end
 
-  if File.exists? HOOK_PATH
-    fatal "A post-commit hook already exists for this project."
-    #TODO: disambiguate between OUR post-commit hook and something else
-    exit 1
+  # write (or append) the capture hook with shebang (if needed) and capture args
+  shebang = "#!/bin/sh" unless existing_valid_hook?
+  File.open(HOOK_PATH, shebang ? 'w' : 'a') do |f|
+    # pass extra args from --enable to the post-commit capture hook
+    capture_args = " #{ARGV[1..-1].join(' ')}" if ARGV.length > 1
+    f.write("#{shebang}\nlolcommits --capture#{capture_args}\n")
   end
 
-  doc = "#!/bin/sh\nlolcommits --capture\n"
-  File.open(HOOK_PATH, 'w') {|f| f.write(doc) }
   FileUtils.chmod 0755, HOOK_PATH
-  info "installed lolcommmit hook as:"
+  info "installed lolcommmit hook to:"
   info "  -> #{File.expand_path(HOOK_PATH)}"
   info "(to remove later, you can use: lolcommits --disable)"
   # we dont symlink, but rather install a small stub that calls the one from path
@@ -115,13 +142,21 @@ end
 # IF --DISABLE, DO DISABLE
 #
 def do_disable
-  if File.exists? HOOK_PATH
-    #TODO: check if hook file has been modified before removing
-    FileUtils.rm HOOK_PATH
-    info "removed #{HOOK_PATH}"
-  else
-    info "lolcommits is not enabled for this directory, so there is nothing to uninstall."
+  # remove any lolcommits lines from the post-commit hook
+  if hook = read_existing_hook
+    if hook =~ /lolcommits/
+      new_lines = []
+      hook.lines.each do |line|
+        new_lines << line.strip unless line =~ /lolcommits/
+      end
+      File.open(HOOK_PATH, 'w') { |f| f.write(new_lines.join("\n")) }
+      info "removed lolcommmit hook from:"
+      info "  -> #{File.expand_path(HOOK_PATH)}"
+      return
+    end
   end
+
+  info "lolcommits is not enabled for this directory, so there is nothing to uninstall."
 end
 
 def configuration

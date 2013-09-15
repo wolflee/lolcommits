@@ -32,6 +32,11 @@ Given /^a git repository named "(.*?)" with (a|no) "(.*?)" hook$/ do |repo_name,
   step %{the git repository named "#{repo_name}" has #{yesno_modifier} "#{hook_name}" hook}
 end
 
+Given /^a "(.*?)" "(.*?)" hook exists with content "(.*?)"$/ do |repo_name, hook_name, hook_content|
+  hook_file = File.join current_dir, repo_name, ".git", "hooks", hook_name
+  File.open(hook_file, 'w') { |f| f.write(hook_content.gsub('\n', "\n")) }
+end
+
 Given /^I am in a git repository named "(.*?)"$/ do |repo_name|
   steps %Q{
     Given a git repository named "#{repo_name}"

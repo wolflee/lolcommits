@@ -21,16 +21,52 @@ Feature: Basic UI functionality
     Given a git repository named "loltest" with no "post-commit" hook
     When I cd to "loltest"
     And I successfully run `lolcommits --enable`
-    Then the output should contain "installed lolcommmit hook as:"
+    Then the output should contain "installed lolcommmit hook to:"
       And the output should contain "(to remove later, you can use: lolcommits --disable)"
       And a file named ".git/hooks/post-commit" should exist
+      And the file ".git/hooks/post-commit" should contain "lolcommits --capture"
       And the exit status should be 0
+
+  Scenario: Enable in a git repository passing capture arguments
+    Given a git repository named "loltest" with no "post-commit" hook
+    When I cd to "loltest"
+    And I successfully run `lolcommits --enable -w 5 --fork`
+    Then the output should contain "installed lolcommmit hook to:"
+      And the output should contain "(to remove later, you can use: lolcommits --disable)"
+      And a file named ".git/hooks/post-commit" should exist
+      And the file ".git/hooks/post-commit" should contain "lolcommits --capture -w 5 --fork"
+      And the exit status should be 0
+
+  Scenario: Enable in a repository with an existing post-commit hook
+    Given a git repository named "loltest" with no "post-commit" hook
+    And a "loltest" "post-commit" hook exists with content "#!/bin/sh\nexisting-hook-command\n"
+    When I cd to "loltest"
+    When I successfully run `lolcommits --enable`
+    And the file ".git/hooks/post-commit" should contain "existing-hook-command"
+    And the file ".git/hooks/post-commit" should contain "lolcommits --capture"
+      And the exit status should be 0
+
+  Scenario: Enable in a repository already having an lolcommits post hook
+    Given a git repository named "loltest" with no "post-commit" hook
+    And a "loltest" "post-commit" hook exists with content "#!/bin/sh\nlolcommits --capture"
+    When I cd to "loltest"
+    When I run `lolcommits --enable`
+    Then the output should contain "A post-commit hook for lolcommits already exists for this project."
+      And the exit status should be 1
+
+  Scenario: Enable in a repository with a bad shebang line
+    Given a git repository named "loltest" with no "post-commit" hook
+    And a "loltest" "post-commit" hook exists with content "#!/bin/ruby\n"
+    When I cd to "loltest"
+    When I run `lolcommits --enable`
+    Then the output should contain "A post-commit hook already exists, but doesn't start with a valid shebang! e.g. #!/bin/sh"
+      And the exit status should be 1
 
   Scenario: Disable in a enabled git repository
     Given I am in a git repository named "lolenabled" with lolcommits enabled
     When I successfully run `lolcommits --disable`
     Then the output should contain "removed"
-      And a file named ".git/hooks/post-commit" should not exist
+      And the file ".git/hooks/post-commit" should not contain "lolcommits --capture"
       And the exit status should be 0
 
   Scenario: Trying to enable while not in a git repo fails
